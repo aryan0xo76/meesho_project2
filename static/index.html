@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meesho AI Campaign Manager</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛍️</text></svg>">
+</head>
+
+<body>
+
+    <nav>
+        <div class="logo">🛍️ Meesho AI</div>
+        <div class="status-bar">
+            <span>Data: <b id="statusData" class="badge">🔴 Missing</b></span>
+            <span>Models: <b id="statusModel" class="badge">🔴 Missing</b></span>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <div class="card" id="step1">
+            <h2>1. Synthetic Data Generation</h2>
+            <p>Generate 50,000+ realistic user events (Views, Carts, Purchases) with hidden persona patterns.</p>
+
+            <button onclick="runData()" id="btnData">Generate Data</button>
+            <div id="loaderData" class="loader">Generating... (Approx 3-5s)</div>
+        </div>
+
+        <div class="card locked" id="step2">
+            <h2>2. Train AI Models</h2>
+            <p>Train Co-visitation Matrix, Send-Time Optimizer, and CatBoost Reranker on the generated data.</p>
+
+            <button onclick="runTrain()" id="btnTrain">Train Models</button>
+            <div id="loaderTrain" class="loader">Training... (Approx 5-10s)</div>
+        </div>
+
+        <div class="card locked" id="step3">
+            <h2>3. Campaign Creator</h2>
+            <p>Select a target persona to generate a hyper-personalized WhatsApp message.</p>
+
+            <div class="input-group">
+                <select id="personaSelect">
+                    <option value="tier2_fashion">Tier-2 Fashion Shopper</option>
+                    <option value="student_examprep">Student (Exam Prep)</option>
+                    <option value="budget_gadget">Budget Tech Enthusiast</option>
+                    <option value="home_decor_festive">Home Decor (Festive)</option>
+                </select>
+                <button onclick="runPredict()" id="btnPredict">✨ Generate Campaign</button>
+            </div>
+
+            <div id="results" class="hidden">
+
+                <div class="insight-badge">
+                    🚀 <b>Best Send Time:</b> <span id="optTime">--:--</span>
+                </div>
+
+                <div class="wa-container">
+                    <div class="wa-header">WhatsApp Preview</div>
+                    <div class="wa-bubble" id="waBubble">
+                    </div>
+                </div>
+
+                <button onclick="copyToClipboard()" class="btn-copy" id="btnCopy">
+                    📋 Copy Message
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
