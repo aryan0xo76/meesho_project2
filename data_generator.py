@@ -4,6 +4,8 @@ import random
 from faker import Faker
 from datetime import datetime, timedelta
 import asyncio
+from pathlib import Path
+import os
 
 fake = Faker('en_IN')
 
@@ -18,84 +20,97 @@ class DataGenerator:
         }
         
     async def generate_all_data(self):
-        """Main Orchestrator"""
-        await self.generate_users()
-        await self.generate_products()
-        await self.generate_smart_interactions()
+        print("Generating mock DB...")
+        users = await self.generate_users()
+        products = await self.generate_products()
+        await self.generate_smart_interactions(users, products)
+        print("Done.")
 
     async def generate_users(self, n=500):
         users = []
         personas = ["tier2_fashion", "student_examprep", "budget_gadget", "home_decor_festive"]
+        
+        # map personas to categories
+        pref_mapping = {
+            "tier2_fashion": "fashion_ethnic",
+            "student_examprep": "stationery",
+            "budget_gadget": "electronics_budget",
+            "home_decor_festive": "home_decor_festive"
+        }
+        
         for i in range(n):
+            persona = random.choice(personas)
             users.append({
-                "user_id": f"U{str(i).zfill(4)}",
-                "name": fake.name(),
-                "city": fake.city(),
-                "persona": random.choice(personas)
+                "user_id": f"U{i}",
+                "persona": persona,
+                "preferred_category": pref_mapping[persona],
+                "past_30d_spend": round(random.uniform(100, 5000), 2),
+                "base_shopping_hour": random.randint(8, 23)
             })
-        pd.DataFrame(users).to_csv(self.data_dir / "users.csv", index=False)
+            
+        df = pd.DataFrame(users)
+        df.to_csv(self.data_dir / "users.csv", index=False)
+        return users
 
-    async def generate_products(self, n=200):
+    async def generate_products(self):
         products = []
-        adjectives = ["Premium", "Budget", "Designer", "Handmade", "Imported", "Classic"]
-        
-        for i in range(n):
-            cat = random.choice(list(self.categories.keys()))
-            base_name = random.choice(self.categories[cat])
-            adj = random.choice(adjectives)
-            products.append({
-                "product_id": f"P{str(i).zfill(4)}",
-                "name": f"{adj} {base_name}",
-                "category": cat,
-                "price": random.randint(150, 2500)
-            })
-        pd.DataFrame(products).to_csv(self.data_dir / "products.csv", index=False)
+        p_id = 0
+        for cat, items in self.categories.items():
+            for item in items:
+                # generate 5 variations per item to bulk up the catalog
+                for _ in range(5):
+                    products.append({
+                        "product_id": f"P{p_id}",
+                        "name": f"{fake.word().capitalize()} {item}",
+                        "category": cat,
+                        "price": round(random.uniform(99, 1999), 2)
+                    })
+                    p_id += 1
+                    
+        df = pd.DataFrame(products)
+        df.to_csv(self.data_dir / "products.csv", index=False)
+        return products
 
-    async def generate_smart_interactions(self, n_events=5000):
-        """
-        Generates events with 'Hidden Logic' for the AI to find.
-        - Students buy at night.
-        - Fashion shoppers buy in afternoon.
-        - Festivals trigger Home Decor.
-        """
-        users = pd.read_csv(self.data_dir / "users.csv").to_dict('records')
-        products = pd.read_csv(self.data_dir / "products.csv").to_dict('records')
-        
+    async def generate_smart_interactions(self, users, products, target_events=50000):
         events = []
-        start_date = datetime.now() - timedelta(days=90)
+        session_id_counter = 1000
         
-        for _ in range(n_events):
+        # cache for speed
+        cat_products = {cat: [p for p in products if p['category'] == cat] for cat in self.categories.keys()}
+        
+        while len(events) < target_events:
             user = random.choice(users)
             
-            if user["persona"] == "student_examprep":
-                hour = random.choice([21, 22, 23, 0]) 
-            elif user["persona"] == "home_decor_festive":
-                hour = random.choice([10, 11, 12]) 
-            else:
-                hour = random.randint(9, 21)
+            # user's usual shopping time +/- a bit of noise
+            event_hour = max(0, min(23, int(np.random.normal(user["base_shopping_hour"], 2))))
+            base_ts = datetime.now() - timedelta(days=random.randint(0, 30))
+            base_ts = base_ts.replace(hour=event_hour, minute=random.randint(0, 59))
+            
+            session_length = random.randint(1, 4)
+            session_id = f"S{session_id_counter}"
+            session_id_counter += 1
+            
+            # 70% chance they shop in their preferred category
+            session_cat = user["preferred_category"] if random.random() < 0.7 else random.choice(list(self.categories.keys()))
+            available_prods = cat_products.get(session_cat, products)
+            
+            for _ in range(session_length):
+                product = random.choice(available_prods)
+                rand_val = random.random()
                 
-            ts = start_date + timedelta(days=random.randint(0, 90), hours=hour)
-            
-            if random.random() < 0.7:
-                mapping = {
-                    "tier2_fashion": "fashion_ethnic",
-                    "student_examprep": "stationery",
-                    "budget_gadget": "electronics_budget",
-                    "home_decor_festive": "home_decor_festive"
-                }
-                pref_cat = mapping.get(user["persona"])
-                subset = [p for p in products if p["category"] == pref_cat]
-                product = random.choice(subset) if subset else random.choice(products)
-            else:
-                product = random.choice(products)
-            
-            events.append({
-                "user_id": user["user_id"],
-                "product_id": product["product_id"],
-                "category": product["category"],
-                "event_type": random.choice(["view", "cart", "purchase"]),
-                "timestamp": ts,
-                "day_of_week": ts.strftime("%A")
-            })
-            
-        pd.DataFrame(events).to_csv(self.data_dir / "events.csv", index=False)
+                # simulate funnel dropout
+                if rand_val < 0.05: event_type = "purchase"
+                elif rand_val < 0.15: event_type = "cart"
+                else: event_type = "view"
+                
+                events.append({
+                    "user_id": user["user_id"],
+                    "session_id": session_id,
+                    "product_id": product["product_id"],
+                    "event_type": event_type,
+                    "timestamp": base_ts.strftime("%Y-%m-%d %H:%M:%S")
+                })
+                base_ts += timedelta(minutes=random.randint(1, 5))
+                
+        df = pd.DataFrame(events)
+        df.to_csv(self.data_dir / "events.csv", index=False)

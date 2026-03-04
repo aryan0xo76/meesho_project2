@@ -3,19 +3,43 @@ import asyncio
 
 class HeadlineGenerator:
     def __init__(self):
-        self.templates = {
-            "tier2_fashion": ["✨ New Wedding Collection: Styles just for you!", "💃 Ethnic Wear Sale: Up to 60% Off Sarees"],
-            "student_examprep": ["🎓 Exam Essentials: Everything you need to succeed!", "📝 Study Smart: Best deals on Stationery."],
-            "budget_gadget": ["🔥 Tech Drop: Best Earbuds under ₹999", "⚡ Flash Sale: Mobile Accessories ending soon!"],
-            "home_decor_festive": ["🪔 Light up your home this Diwali!", "🏠 Home Makeover: Festive prices are here."],
-            "default": ["🌟 Special Offers Just for You!"]
-        }
+        print("Context-Aware NLG Engine Ready")
 
-    def train(self, df_events):
-        print("Headline Generator Ready")
+    def train(self, df_events=None):
+        pass # rule-based, no train needed
 
-    async def generate_headline(self, persona_dict):
-        pid = persona_dict.get("id", "default")
-        opts = self.templates.get(pid, self.templates["default"])
-        await asyncio.sleep(0.1)
-        return random.choice(opts)
+    async def generate_headline(self, persona_id, top_product=None):
+        if not top_product:
+            return "🌟 Handpicked just for you! Check out today's top trends."
+
+        prod_name = top_product.get("name", "item")
+        price = top_product.get("price", 0)
+        
+        if persona_id == "student_examprep":
+            hooks = [
+                f"📚 Study break! Treat yourself to this {prod_name}.",
+                f"🎓 Ace your prep with the right gear. {prod_name} is now just ₹{price}!",
+                f"⚡ Late night studying? You might need this {prod_name}."
+            ]
+        elif persona_id == "budget_gadget":
+            hooks = [
+                f"📱 Tech drop! Upgrade your setup with the new {prod_name}.",
+                f"⚡ Flash Deal: Get the {prod_name} for only ₹{price} today.",
+                f"🎧 Smart tech, smarter price. Grab this {prod_name} before it's gone!"
+            ]
+        elif persona_id == "tier2_fashion":
+            hooks = [
+                f"👗 Trending right now! Upgrade your wardrobe with this {prod_name}.",
+                f"✨ Look your best for less. {prod_name} is currently ₹{price}.",
+                f"💃 Just arrived! We think you'll absolutely love this {prod_name}."
+            ]
+        elif persona_id == "home_decor_festive":
+            hooks = [
+                f"🏠 Make your space shine with this {prod_name}.",
+                f"🪔 Festive special! Beautiful {prod_name} for just ₹{price}.",
+                f"✨ Upgrade your living room instantly with this {prod_name}."
+            ]
+        else:
+            hooks = [f"🌟 Top pick for you: {prod_name} at ₹{price}!"]
+
+        return random.choice(hooks)

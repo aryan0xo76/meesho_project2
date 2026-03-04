@@ -2,7 +2,7 @@ fastapi
 uvicorn
 pandas
 numpy
+catboost
 scikit-learn
 faker
-aiofiles
 python-multipart

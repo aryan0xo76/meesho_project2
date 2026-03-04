@@ -1,173 +1,94 @@
 const API = "http://127.0.0.1:8000/api";
 
-document.addEventListener("DOMContentLoaded", () => {
-  checkStatus(false);
-});
+document.addEventListener("DOMContentLoaded", checkStatus);
 
-async function checkStatus(updateLoaders = false) {
+async function checkStatus() {
   try {
     const res = await fetch(API + "/status");
     const s = await res.json();
 
     if (s.data) {
-      markComplete("statusData", "btnData", "loaderData", "✅ Data Ready");
-      unlockStep("step2");
-    } else if (!updateLoaders) {
-      resetStep("statusData", "btnData", "loaderData", "Generate Data");
+      document.getElementById("statusData").innerText = "🟢 Ready";
+      document.getElementById("btnData").innerText = "Data Generated Successfully";
+      document.getElementById("btnData").disabled = true;
     }
-
     if (s.model) {
-      markComplete(
-        "statusModel",
-        "btnTrain",
-        "loaderTrain",
-        "✅ Models Trained",
-      );
-      unlockStep("step3");
-    } else if (!updateLoaders && s.data) {
-      resetStep("statusModel", "btnTrain", "loaderTrain", "Train Models");
+      document.getElementById("statusModel").innerText = "🟢 Ready";
+      document.getElementById("btnTrain").innerText = "Models Trained Successfully";
+      document.getElementById("btnTrain").disabled = true;
     }
-
-    return s;
   } catch (e) {
-    console.error("Server offline?", e);
+    console.error("Backend offline?", e);
   }
 }
 
-
 async function runData() {
-  setLoading("btnData", "loaderData");
-
+  document.getElementById("btnData").disabled = true;
+  document.getElementById("loaderData").style.display = "block";
   await fetch(API + "/generate-data", { method: "POST" });
 
-  pollUntil(async () => {
-    const s = await checkStatus(true);
-    return s.data === true;
-  });
+  // polling is lazy but works for demo)
+  const interval = setInterval(async () => {
+    const res = await fetch(API + "/status");
+    const s = await res.json();
+    if (s.data) {
+      clearInterval(interval);
+      document.getElementById("loaderData").style.display = "none";
+      checkStatus();
+    }
+  }, 2000);
 }
 
 async function runTrain() {
-  setLoading("btnTrain", "loaderTrain");
+  document.getElementById("btnTrain").disabled = true;
+  document.getElementById("loaderTrain").style.display = "block";
 
-  await fetch(API + "/train", { method: "POST" });
+  const res = await fetch(API + "/train", { method: "POST" });
+  if (!res.ok) {
+    alert("Please generate data first!");
+    document.getElementById("loaderTrain").style.display = "none";
+    document.getElementById("btnTrain").disabled = false;
+    return;
+  }
 
-  pollUntil(async () => {
-    const s = await checkStatus(true);
-    return s.model === true;
-  });
+  const interval = setInterval(async () => {
+    const res = await fetch(API + "/status");
+    const s = await res.json();
+    if (s.model) {
+      clearInterval(interval);
+      document.getElementById("loaderTrain").style.display = "none";
+      checkStatus();
+    }
+  }, 2000);
 }
 
 async function runPredict() {
+  const personaId = document.getElementById("personaSelect").value;
   const btn = document.getElementById("btnPredict");
-  btn.innerText = "⏳ Generating...";
-  btn.disabled = true;
 
-  const pid = document.getElementById("personaSelect").value;
+  btn.disabled = true;
+  btn.innerText = "Generating...";
 
   try {
     const res = await fetch(API + "/predict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: pid, name: pid, description: "test" }),
+      body: JSON.stringify({ id: personaId }),
     });
 
-    const data = await res.json();
-    renderResults(data);
-  } catch (e) {
-    alert("Error generating prediction");
-  } finally {
-    btn.innerText = "✨ Generate Campaign";
-    btn.disabled = false;
-  }
-}
-
-let currentMessage = "";
-
-function renderResults(data) {
-  document.getElementById("results").classList.remove("hidden");
-
-  document.getElementById("optTime").innerText =
-    data.optimal_hours[0] + ":00 IST";
-
-  const prodList = data.products
-    .map((p) => `• ${p.title} - ₹${p.price}`)
-    .join("\n");
-  const cleanMessage = `${data.headline}\n\n${prodList}`;
-
-  document.getElementById("waBubble").innerText = cleanMessage;
-  currentMessage = cleanMessage;
-}
-
-function copyToClipboard() {
-  if (!currentMessage) return;
-  navigator.clipboard.writeText(currentMessage).then(() => {
-    const btn = document.getElementById("btnCopy");
-    const originalText = btn.innerText;
-    btn.innerText = "✅ Copied!";
-    btn.style.background = "#10b981";
-
-    setTimeout(() => {
-      btn.innerText = originalText;
-      btn.style.background = "#333";
-    }, 2000);
-  });
-}
-
-// Polls a condition every 1 second until true
-async function pollUntil(checkFn) {
-  const interval = setInterval(async () => {
-    const isDone = await checkFn();
-    if (isDone) {
-      clearInterval(interval);
+    if (!res.ok) {
+      alert("Ensure models are trained first!");
+      throw new Error("Models not ready");
     }
-  }, 1000);
-}
 
-function setLoading(btnId, loaderId) {
-  document.getElementById(btnId).disabled = true;
-  document.getElementById(loaderId).style.display = "block";
-}
+    const data = await res.json();
 
-function markComplete(badgeId, btnId, loaderId, btnText) {
-  // Update Badge
-  const badge = document.getElementById(badgeId);
-  if (badge) {
-    badge.innerText = "🟢 Ready";
-    badge.classList.add("ready");
-  }
-
-  // Hide Loader
-  const loader = document.getElementById(loaderId);
-  if (loader) loader.style.display = "none";
-
-  // Disable Button
-  const btn = document.getElementById(btnId);
-  if (btn) {
-    btn.innerText = btnText;
-    btn.disabled = true;
-    btn.classList.add("btn-done");
-  }
-}
-
-function resetStep(badgeId, btnId, loaderId, btnText) {
-  const badge = document.getElementById(badgeId);
-  if (badge) {
-    badge.innerText = "🔴 Missing";
-    badge.classList.remove("ready");
-  }
-
-  const loader = document.getElementById(loaderId);
-  if (loader) loader.style.display = "none";
-
-  const btn = document.getElementById(btnId);
-  if (btn) {
-    btn.innerText = btnText;
+    document.getElementById("results").style.display = "block";
+    document.getElementById("waBubble").innerText = data.message;
+  } catch (e) {
+    console.error(e);
+  } finally {
     btn.disabled = false;
-    btn.classList.remove("btn-done");
+    btn.innerText = "Generate Campaign";
   }
-}
-
-function unlockStep(stepId) {
-  const step = document.getElementById(stepId);
-  if (step) step.classList.remove("locked");
 }
